@@ -8,8 +8,6 @@
   <style>
     :root{
       --bg: #0b0b0f;
-      --panel: rgba(255,255,255,.06);
-      --panel2: rgba(255,255,255,.09);
       --border: rgba(255,255,255,.10);
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.60);
@@ -30,7 +28,7 @@
         radial-gradient(700px 700px at 50% 100%, rgba(255,77,77,.10), transparent 60%),
         var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -48,10 +46,7 @@
       grid-template-columns: 1.2fr .8fr;
       gap: 14px;
     }
-
-    @media (max-width: 900px){
-      .app{ grid-template-columns: 1fr; }
-    }
+    @media (max-width: 900px){ .app{ grid-template-columns: 1fr; } }
 
     .card{
       background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
@@ -77,12 +72,7 @@
       gap: 4px;
       min-width: 240px;
     }
-
-    .title h1{
-      font-size: 16px;
-      margin: 0;
-      letter-spacing: .2px;
-    }
+    .title h1{ font-size: 16px; margin: 0; letter-spacing: .2px; }
 
     .sub{
       font-size: 12px;
@@ -140,25 +130,19 @@
       border-color: rgba(103,183,255,.35);
       background: rgba(103,183,255,.12);
     }
-
     .btn-danger{
       border-color: rgba(255,77,77,.30);
       background: rgba(255,77,77,.10);
     }
 
-    .content{
-      padding: 14px;
-    }
+    .content{ padding: 14px; }
 
-    /* Chat area */
     .chat-shell{
       height: 560px;
       display: flex;
       flex-direction: column;
     }
-    @media (max-width: 900px){
-      .chat-shell{ height: 62vh; min-height: 420px; }
-    }
+    @media (max-width: 900px){ .chat-shell{ height: 62vh; min-height: 420px; } }
 
     .chat-box{
       flex: 1;
@@ -177,7 +161,6 @@
       margin-bottom: 10px;
       animation: in .18s ease;
     }
-
     @keyframes in{
       from{ opacity: 0; transform: translateY(4px); }
       to{ opacity: 1; transform: translateY(0); }
@@ -245,9 +228,7 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
-    @media (max-width: 520px){
-      .small-row{ grid-template-columns: 1fr; }
-    }
+    @media (max-width: 520px){ .small-row{ grid-template-columns: 1fr; } }
 
     .footer{
       padding: 10px 14px 14px;
@@ -290,7 +271,7 @@
         </div>
       </section>
 
-      <!-- RIGHT: INFO (no inputs) -->
+      <!-- RIGHT: INFO -->
       <aside class="card">
         <div class="header">
           <div class="title">
@@ -303,11 +284,10 @@
         </div>
 
         <div class="content" style="display:grid; gap:10px;">
-          <!-- INI KATA-KATA .hint YANG KAMU MINTA -->
           <div class="hint">
             Halaman ini dipakai untuk memonitor chat yang menyebut <b>tepe</b> di live stream channel <b>YB</b>.
-            Komentar yang tampil di sini adalah hasil filter keyword (mis. “tepe”, “tepelepsi”, dll) dari chat live.
-            Kalau tampilan terasa ngelag atau telat update, tekan tombol <b>Refresh Server</b> di bawah.
+            Komentar yang tampil di sini berasal dari stream SSE dan akan muncul real-time.
+            Kalau koneksi terasa ngelag atau stop update, tekan <b>Refresh Server</b> untuk reconnect.
           </div>
 
           <div class="small-row">
@@ -316,8 +296,8 @@
           </div>
 
           <div class="hint">
-            Video: <a id="videoLink" href="#" target="_blank" rel="noreferrer">-</a><br/>
-            API: <a id="apiLink" href="http://localhost:3000/matches" target="_blank" rel="noreferrer">http://localhost:3000/matches</a>
+            API SSE: <a id="apiLink" href="http://localhost:3000/api/stream" target="_blank" rel="noreferrer">http://localhost:3000/api/stream</a><br/>
+            Video: <a id="videoLink" href="#" target="_blank" rel="noreferrer">-</a>
           </div>
         </div>
       </aside>
@@ -325,9 +305,8 @@
   </div>
 
   <script>
-    // fixed endpoint biar simpel
-    const API_URL = "http://localhost:3000/matches";
-    const POLL_MS = 1000;
+    // SSE endpoint
+    const API_URL = "http://localhost:3000/api/stream";
 
     const chatBox = document.getElementById("chatBox");
     const statusDot = document.getElementById("statusDot");
@@ -346,7 +325,7 @@
     apiLink.textContent = API_URL;
 
     let running = true;
-    let timer = null;
+    let es = null;
 
     // dedup
     const seen = new Set();
@@ -385,7 +364,8 @@
       const author = c.author ?? "unknown";
       const msg = c.msg ?? "";
 
-      const key = `${c.tsIso || ts}|${author}|${msg}`;
+      // prefer id, fallback ke kombinasi
+      const key = (c.id != null) ? `id:${c.id}` : `${c.tsIso || ts}|${author}|${msg}`;
       if (seen.has(key)) return;
       seen.add(key);
 
@@ -403,57 +383,68 @@
           <div class="msg">${esc(msg)}</div>
         </div>
       `;
-
       chatBox.appendChild(item);
 
-      // tidak ada penghapusan chat (history aman)
       if (auto) chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    async function fetchChat(){
-      try{
-        setStatus("", "Fetching...");
-        const res = await fetch(API_URL, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        if (!data || data.ok !== true) throw new Error("Response ok != true");
-
-        serverTimeEl.textContent = data.serverTimeWIB ?? "-";
-        updatedAtEl.textContent = data.updatedAt ?? "-";
-
-        const v = data.videoUrl ?? "#";
-        videoLink.href = v;
-        videoLink.textContent = v === "#" ? "-" : v;
-
-        const list = Array.isArray(data.matches) ? data.matches : [];
-        list.sort((a,b) => String(a.tsIso||"").localeCompare(String(b.tsIso||"")));
-        list.forEach(addChat);
-
-        setStatus("ok", running ? "Running" : "Paused");
-      }catch(e){
-        console.error(e);
-        setStatus("bad", e.message || "Error");
+    function closeStream(){
+      if (es) {
+        try { es.close(); } catch {}
       }
+      es = null;
     }
 
-    function start(){
-      stop();
-      timer = setInterval(() => {
-        if (running) fetchChat();
-      }, POLL_MS);
+    function openStream(){
+      closeStream();
+      setStatus("", "Connecting...");
+
+      // cache-bust biar reconnect beneran fresh
+      const url = `${API_URL}${API_URL.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      es = new EventSource(url);
+
+      es.onopen = () => {
+        setStatus("ok", running ? "Running" : "Paused");
+      };
+
+      es.onmessage = (e) => {
+        if (!running) return;
+
+        try{
+          // server ngirim: { data: {id, tsIso, tsWIB, author, msg, usec} , ...optional meta }
+          const payload = JSON.parse(e.data);
+          const d = payload?.data ?? payload;
+
+          // update header meta (kalau ada)
+          serverTimeEl.textContent = payload?.serverTimeWIB ?? payload?.serverTime ?? "-";
+          updatedAtEl.textContent = payload?.updatedAt ?? d?.tsIso ?? "-";
+
+          const v = payload?.videoUrl ?? "#";
+          videoLink.href = v;
+          videoLink.textContent = v === "#" ? "-" : v;
+
+          if (Array.isArray(d)) {
+            d.sort((a,b) => String(a.tsIso||"").localeCompare(String(b.tsIso||""))).forEach(addChat);
+          } else {
+            addChat(d);
+          }
+        } catch(err){
+          console.error("SSE parse error:", err);
+          setStatus("bad", "Parse error");
+        }
+      };
+
+      es.onerror = () => {
+        // SSE auto-retry internal browser, tapi kita tampilkan status
+        setStatus("bad", "Disconnected / retrying...");
+      };
     }
 
-    function stop(){
-      if (timer) clearInterval(timer);
-      timer = null;
-    }
-
+    // Buttons
     toggleBtn.addEventListener("click", () => {
       running = !running;
       toggleBtn.textContent = running ? "Pause" : "Resume";
       setStatus(running ? "ok" : "", running ? "Running" : "Paused");
-      if (running) fetchChat();
     });
 
     clearBtn.addEventListener("click", () => {
@@ -463,8 +454,7 @@
     });
 
     refreshBtn.addEventListener("click", () => {
-      // "refresh server" versi UI: fetch sekali + paksa status
-      fetchChat();
+      openStream();
     });
 
     openApiBtn.addEventListener("click", () => {
@@ -472,8 +462,7 @@
     });
 
     // init
-    fetchChat();
-    start();
+    openStream();
   </script>
 </body>
 </html>
