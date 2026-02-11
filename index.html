@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Live Chat Monitor</title>
+
+  <style>
+    :root{
+      --bg: #0b0b0f;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --border: rgba(255,255,255,.10);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.60);
+      --accent: #67b7ff;
+      --ok: #2ad67a;
+      --bad: #ff4d4d;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+
+    *{ box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{
+      margin: 0;
+      background:
+        radial-gradient(1200px 600px at 20% 0%, rgba(103,183,255,.16), transparent 55%),
+        radial-gradient(900px 500px at 80% 10%, rgba(42,214,122,.10), transparent 55%),
+        radial-gradient(700px 700px at 50% 100%, rgba(255,77,77,.10), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .wrap{
+      min-height: 100%;
+      display: flex;
+      justify-content: center;
+      padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+    }
+
+    .app{
+      width: min(980px, 100%);
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 900px){
+      .app{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .header{
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .title{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 240px;
+    }
+
+    .title h1{
+      font-size: 16px;
+      margin: 0;
+      letter-spacing: .2px;
+    }
+
+    .sub{
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pill{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .dot{
+      width: 8px; height: 8px; border-radius: 999px;
+      background: var(--muted);
+      box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+    }
+    .dot.ok{ background: var(--ok); }
+    .dot.bad{ background: var(--bad); }
+
+    .actions{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button{
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: transform .05s ease, background .15s ease;
+      user-select: none;
+    }
+    button:active{ transform: translateY(1px); }
+    button:hover{ background: rgba(255,255,255,.09); }
+
+    .btn-accent{
+      border-color: rgba(103,183,255,.35);
+      background: rgba(103,183,255,.12);
+    }
+
+    .btn-danger{
+      border-color: rgba(255,77,77,.30);
+      background: rgba(255,77,77,.10);
+    }
+
+    .content{
+      padding: 14px;
+    }
+
+    /* Chat area */
+    .chat-shell{
+      height: 560px;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (max-width: 900px){
+      .chat-shell{ height: 62vh; min-height: 420px; }
+    }
+
+    .chat-box{
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      background:
+        radial-gradient(500px 220px at 40% 0%, rgba(255,255,255,.07), transparent 60%),
+        rgba(0,0,0,.20);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+    }
+
+    .chat-item{
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      animation: in .18s ease;
+    }
+
+    @keyframes in{
+      from{ opacity: 0; transform: translateY(4px); }
+      to{ opacity: 1; transform: translateY(0); }
+    }
+
+    .avatar{
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      display: grid;
+      place-items: center;
+      color: rgba(255,255,255,.85);
+      font-weight: 800;
+      flex: 0 0 34px;
+    }
+
+    .bubble{
+      max-width: 100%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 8px 20px rgba(0,0,0,.20);
+    }
+
+    .meta{
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 3px;
+    }
+
+    .author{
+      font-weight: 800;
+      color: var(--accent);
+      font-size: 13px;
+    }
+    .time{
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .msg{
+      font-size: 14px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .small-row{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 520px){
+      .small-row{ grid-template-columns: 1fr; }
+    }
+
+    .footer{
+      padding: 10px 14px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    a{ color: var(--accent); text-decoration: none; }
+    a:hover{ text-decoration: underline; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="app">
+      <!-- LEFT: CHAT -->
+      <section class="card">
+        <div class="header">
+          <div class="title">
+            <h1>Live Chat Monitor</h1>
+            <div class="sub">
+              <span class="pill"><span id="statusDot" class="dot"></span><span id="statusText">Idle</span></span>
+              <span class="pill">Server WIB: <span id="serverTime" style="color: var(--text); opacity:.9;">-</span></span>
+              <span class="pill">Updated: <span id="updatedAt" style="color: var(--text); opacity:.9;">-</span></span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="toggleBtn" class="btn-accent">Pause</button>
+            <button id="clearBtn" class="btn-danger">Clear</button>
+          </div>
+        </div>
+
+        <div class="content chat-shell">
+          <div id="chatBox" class="chat-box" aria-label="Live chat messages"></div>
+          <div class="footer">
+            Auto-scroll aktif kalau kamu lagi di bawah. Kalau scroll ke atas, chat baru tidak maksa turun.
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: INFO (no inputs) -->
+      <aside class="card">
+        <div class="header">
+          <div class="title">
+            <h1>Info</h1>
+            <div class="sub">
+              <span class="pill">Channel: <span style="color: var(--text); opacity:.9;">YB</span></span>
+              <span class="pill">Keyword: <span style="color: var(--text); opacity:.9;">tepe</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="content" style="display:grid; gap:10px;">
+          <!-- INI KATA-KATA .hint YANG KAMU MINTA -->
+          <div class="hint">
+            Halaman ini dipakai untuk memonitor chat yang menyebut <b>tepe</b> di live stream channel <b>YB</b>.
+            Komentar yang tampil di sini adalah hasil filter keyword (mis. “tepe”, “tepelepsi”, dll) dari chat live.
+            Kalau tampilan terasa ngelag atau telat update, tekan tombol <b>Refresh Server</b> di bawah.
+          </div>
+
+          <div class="small-row">
+            <button id="refreshBtn" class="btn-accent">Refresh Server</button>
+            <button id="openApiBtn">Buka API</button>
+          </div>
+
+          <div class="hint">
+            Video: <a id="videoLink" href="#" target="_blank" rel="noreferrer">-</a><br/>
+            API: <a id="apiLink" href="http://localhost:3000/matches" target="_blank" rel="noreferrer">http://localhost:3000/matches</a>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // fixed endpoint biar simpel
+    const API_URL = "http://localhost:3000/matches";
+    const POLL_MS = 1000;
+
+    const chatBox = document.getElementById("chatBox");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const serverTimeEl = document.getElementById("serverTime");
+    const updatedAtEl = document.getElementById("updatedAt");
+    const videoLink = document.getElementById("videoLink");
+    const apiLink = document.getElementById("apiLink");
+
+    const toggleBtn = document.getElementById("toggleBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const openApiBtn = document.getElementById("openApiBtn");
+
+    apiLink.href = API_URL;
+    apiLink.textContent = API_URL;
+
+    let running = true;
+    let timer = null;
+
+    // dedup
+    const seen = new Set();
+
+    function esc(str){
+      return String(str ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function setStatus(kind, text){
+      statusText.textContent = text;
+      statusDot.classList.remove("ok","bad");
+      if (kind === "ok") statusDot.classList.add("ok");
+      else if (kind === "bad") statusDot.classList.add("bad");
+    }
+
+    function shouldAutoScroll(){
+      const threshold = 90;
+      const distanceFromBottom = chatBox.scrollHeight - (chatBox.scrollTop + chatBox.clientHeight);
+      return distanceFromBottom < threshold;
+    }
+
+    function avatarLetter(author){
+      const a = String(author || "").replace("@","").trim();
+      return a ? a[0].toUpperCase() : "?";
+    }
+
+    function addChat(c){
+      if (!c) return;
+
+      const ts = c.tsWIB ?? c.tsIso ?? "-";
+      const author = c.author ?? "unknown";
+      const msg = c.msg ?? "";
+
+      const key = `${c.tsIso || ts}|${author}|${msg}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const auto = shouldAutoScroll();
+
+      const item = document.createElement("div");
+      item.className = "chat-item";
+      item.innerHTML = `
+        <div class="avatar">${esc(avatarLetter(author))}</div>
+        <div class="bubble">
+          <div class="meta">
+            <span class="author">${esc(author)}</span>
+            <span class="time">${esc(ts)}</span>
+          </div>
+          <div class="msg">${esc(msg)}</div>
+        </div>
+      `;
+
+      chatBox.appendChild(item);
+
+      // tidak ada penghapusan chat (history aman)
+      if (auto) chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function fetchChat(){
+      try{
+        setStatus("", "Fetching...");
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        if (!data || data.ok !== true) throw new Error("Response ok != true");
+
+        serverTimeEl.textContent = data.serverTimeWIB ?? "-";
+        updatedAtEl.textContent = data.updatedAt ?? "-";
+
+        const v = data.videoUrl ?? "#";
+        videoLink.href = v;
+        videoLink.textContent = v === "#" ? "-" : v;
+
+        const list = Array.isArray(data.matches) ? data.matches : [];
+        list.sort((a,b) => String(a.tsIso||"").localeCompare(String(b.tsIso||"")));
+        list.forEach(addChat);
+
+        setStatus("ok", running ? "Running" : "Paused");
+      }catch(e){
+        console.error(e);
+        setStatus("bad", e.message || "Error");
+      }
+    }
+
+    function start(){
+      stop();
+      timer = setInterval(() => {
+        if (running) fetchChat();
+      }, POLL_MS);
+    }
+
+    function stop(){
+      if (timer) clearInterval(timer);
+      timer = null;
+    }
+
+    toggleBtn.addEventListener("click", () => {
+      running = !running;
+      toggleBtn.textContent = running ? "Pause" : "Resume";
+      setStatus(running ? "ok" : "", running ? "Running" : "Paused");
+      if (running) fetchChat();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      chatBox.innerHTML = "";
+      seen.clear();
+      setStatus(running ? "ok" : "", running ? "Running" : "Cleared");
+    });
+
+    refreshBtn.addEventListener("click", () => {
+      // "refresh server" versi UI: fetch sekali + paksa status
+      fetchChat();
+    });
+
+    openApiBtn.addEventListener("click", () => {
+      window.open(API_URL, "_blank", "noopener,noreferrer");
+    });
+
+    // init
+    fetchChat();
+    start();
+  </script>
+</body>
+</html>
